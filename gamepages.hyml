@@ -1,0 +1,79 @@
+import React, { useRef, useState } from 'react';
+import { useGameEngine } from '@/hooks/useGameEngine';
+import { AsteroidField } from '@/components/game/AsteroidField';
+import { ResourceBar } from '@/components/game/ResourceBar';
+import { MineButton } from '@/components/game/MineButton';
+import { UpgradePanel } from '@/components/game/UpgradePanel';
+import { FloatingTextManager, FloatingTextRef } from '@/components/game/FloatingText';
+import { EventBanner } from '@/components/game/EventBanner';
+import { PrestigePanel } from '@/components/game/PrestigePanel';
+import { SettingsModal } from '@/components/game/SettingsModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { formatNumber } from '@/lib/utils';
+import { Sparkles } from 'lucide-react';
+
+export default function Game() {
+  const engine = useGameEngine();
+  const floatingTextRef = useRef<FloatingTextRef>(null);
+  const [activeTab, setActiveTab] = useState<'mine' | 'upgrades' | 'prestige'>('mine');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen w-full relative flex flex-col md:flex-row overflow-hidden">
+      <AsteroidField />
+      <FloatingTextManager ref={floatingTextRef} />
+      <EventBanner event={engine.activeEvent} />
+
+      {/* Offline Modal */}
+      <Dialog open={engine.derived.offlineEarnings > 0} onOpenChange={(open) => !open && engine.actions.clearOffline()}>
+        <DialogContent className="bg-card/95 border-border backdrop-blur-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-primary flex items-center gap-2">
+              <Sparkles className="text-accent" /> Welcome Back!
+            </DialogTitle>
+            <DialogDescription className="text-lg py-4">
+              While away, your systems mined:
+              <div className="text-4xl font-display font-bold text-accent text-glow mt-4 text-center">
+                +{formatNumber(engine.derived.offlineEarnings, 0)} CR
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <button onClick={engine.actions.clearOffline} className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-bold font-display hover:scale-105 transition-transform">CLAIM</button>
+        </DialogContent>
+      </Dialog>
+
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} state={engine.state} onReset={() => { engine.actions.resetGame(); setSettingsOpen(false); }} />
+
+      {/* Left: Mine Area */}
+      <div className={`flex-1 flex flex-col h-screen ${activeTab !== 'mine' ? 'hidden md:flex' : 'flex'}`}>
+        <ResourceBar state={engine.state} cps={engine.derived.cps} maxEnergy={engine.derived.maxEnergy} onOpenSettings={() => setSettingsOpen(true)} />
+        <div className="flex-1 flex items-center justify-center p-4 relative">
+          <div className="w-full max-w-[300px] aspect-square relative z-10">
+            <MineButton onMine={engine.actions.mine} onSpawnText={(x, y, text, isCrit) => floatingTextRef.current?.addText(x, y, text, isCrit)} disabled={engine.state.energy <= 0} />
+          </div>
+          <div className="absolute bottom-8 left-0 w-full text-center text-muted-foreground pointer-events-none">
+            <div className="text-sm font-mono tracking-widest opacity-50">CLICK POWER: {formatNumber(engine.derived.clickPower, 1)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Upgrade/Prestige Panel */}
+      <div className={`w-full md:w-[400px] h-screen bg-card/40 flex-col ${activeTab === 'mine' ? 'hidden md:flex' : 'flex'}`}>
+        {activeTab !== 'prestige' ? (
+          <UpgradePanel state={engine.state} activeEvent={engine.activeEvent} onBuyUpgrade={engine.actions.buyUpgrade} />
+        ) : (
+          <PrestigePanel state={engine.state} onPrestige={engine.actions.prestige} onUnlockTech={engine.actions.unlockTech} />
+        )}
+      </div>
+
+      {/* Mobile Nav */}
+      <div className="md:hidden fixed bottom-0 left-0 w-full glass-panel border-t border-border flex p-2 z-50">
+        {(['mine', 'upgrades', 'prestige'] as const).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 text-xs font-bold font-display rounded-lg transition-colors ${activeTab === tab ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
+            {tab.toUpperCase()}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
