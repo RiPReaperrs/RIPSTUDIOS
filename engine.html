@@ -1,0 +1,223 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { GameState, INITIAL_STATE } from '../game/gameState';
+import { UPGRADES, getUpgradeCost } from '../game/upgrades';
+import { ACHIEVEMENTS } from '../game/achievements';
+import { TECH_TREE } from '../game/techTree';
+import { useToast } from '@/hooks/use-toast';
+
+const SAVE_KEY = 'cosmic_ore_save_v1';
+
+export interface ActiveEvent {
+  id: string;
+  name: string;
+  description: string;
+  timeRemaining: number;
+  duration: number;
+  multiplier: number;
+  type: 'click' | 'idle' | 'discount';
+}
+
+const RANDOM_EVENTS = [
+  { id: 'asteroid_shower', name: 'Asteroid Shower', description: '+500% Click Value', duration: 10, multiplier: 5, type: 'click' },
+  { id: 'solar_flare', name: 'Solar Flare', description: '+200% Idle Income', duration: 30, multiplier: 2, type: 'idle' },
+  { id: 'alien_trader', name: 'Alien Trader', description: '50% Upgrade Discount', duration: 60, multiplier: 0.5, type: 'discount' },
+];
+
+export function useGameEngine() {
+  const { toast } = useToast();
+  const stateRef = useRef<GameState>({ ...INITIAL_STATE });
+  const [gameState, setGameState] = useState<GameState>({ ...INITIAL_STATE });
+  const [cps, setCps] = useState(0);
+  const [clickPower, setClickPower] = useState(1);
+  const [maxEnergy, setMaxEnergy] = useState(100);
+  const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
+  const [offlineEarnings, setOfflineEarnings] = useState(0);
+
+  // Load save on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(SAVE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const loadedState = { ...INITIAL_STATE, ...parsed };
+        stateRef.current = loadedState;
+        const now = Date.now();
+        const offlineSeconds = Math.min((now - loadedState.lastSaveTime) / 1000, 28800);
+        if (offlineSeconds > 60) {
+          const { idlePerSec } = calculateDerivedStats(loadedState, null);
+          const earned = idlePerSec * offlineSeconds;
+          if (earned > 0) {
+            stateRef.current.credits += earned;
+            stateRef.current.totalCreditsEarned += earned;
+            setOfflineEarnings(earned);
+          }
+        }
+      } catch (e) { console.error("Save corrupted", e); }
+    }
+    forceUpdate();
+  }, []);
+
+  const forceUpdate = useCallback(() => { setGameState({ ...stateRef.current }); }, []);
+
+  // Auto-save every 10 seconds
+  useEffect(() => {
+    const saveInterval = setInterval(() => {
+      stateRef.current.lastSaveTime = Date.now();
+      localStorage.setItem(SAVE_KEY, JSON.stringify(stateRef.current));
+    }, 10000);
+    return () => clearInterval(saveInterval);
+  }, []);
+
+  const calculateDerivedStats = useCallback((state: GameState, event: ActiveEvent | null) => {
+    let idleBase = 0, clickBase = 1, maxE = 100, critChance = 0, eRegen = 5, globalMult = 1;
+
+    UPGRADES.forEach(upg => {
+      const level = state.upgrades[upg.id] || 0;
+      if (level === 0) return;
+      if (upg.effectType === 'idle') idleBase += upg.effectValue * level;
+      if (upg.effectType === 'click') clickBase += upg.effectValue * level;
+      if (upg.effectType === 'max_energy') maxE += upg.effectValue * level;
+      if (upg.effectType === 'crit_chance') critChance += upg.effectValue * level;
+      if (upg.effectType === 'energy_regen') eRegen += upg.effectValue * level;
+      if (upg.effectType === 'multiplier') globalMult *= Math.pow(upg.effectValue, level);
+    });
+
+    if (state.techTree['efficient_drilling']) clickBase *= 1.1;
+    if (state.techTree['automated_systems']) idleBase *= 1.05;
+    if (state.techTree['lucky_strikes']) critChance += 0.05;
+    if (state.techTree['energy_mastery']) maxE *= 1.25;
+    if (state.techTree['rapid_regen']) eRegen *= 2;
+
+    globalMult *= (1 + (state.prestigeTokens * 0.5));
+    const achCount = Object.values(state.achievements).filter(Boolean).length;
+    globalMult *= (1 + (achCount * 0.01));
+    critChance = Math.min(critChance, 0.8);
+
+    if (event?.type === 'idle') idleBase *= event.multiplier;
+    if (event?.type === 'click') clickBase *= event.multiplier;
+
+    return { idlePerSec: idleBase * globalMult, clickVal: clickBase * globalMult, maxEnergy: maxE, critChance, energyRegen: eRegen, globalMult };
+  }, []);
+
+  // Main game loop (requestAnimationFrame)
+  useEffect(() => {
+    let lastTick = performance.now();
+    let eventTimer = 0;
+
+    const loop = (time: number) => {
+      const delta = (time - lastTick) / 1000;
+      lastTick = time;
+      const s = stateRef.current;
+
+      setActiveEvent(prev => {
+        if (!prev) return null;
+        if (prev.timeRemaining - delta <= 0) return null;
+        return { ...prev, timeRemaining: prev.timeRemaining - delta };
+      });
+
+      eventTimer += delta;
+      if (eventTimer > 60 && !activeEvent) {
+        if (Math.random() < 0.2) {
+          const randomEvt = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+          setActiveEvent({ ...randomEvt, timeRemaining: randomEvt.duration } as ActiveEvent);
+        }
+        eventTimer = 0;
+      }
+
+      const stats = calculateDerivedStats(s, activeEvent);
+      const earned = stats.idlePerSec * delta;
+      s.credits += earned;
+      s.totalCreditsEarned += earned;
+
+      const autoClicks = (s.upgrades['quantum_sensor'] || 0) * delta;
+      if (autoClicks > 0) {
+        s.credits += stats.clickVal * autoClicks;
+        s.totalCreditsEarned += stats.clickVal * autoClicks;
+      }
+
+      if (s.energy < stats.maxEnergy) s.energy = Math.min(stats.maxEnergy, s.energy + (stats.energyRegen * delta));
+      s.playTime += delta;
+
+      if (Math.random() < 0.1) {
+        ACHIEVEMENTS.forEach(ach => {
+          if (!s.achievements[ach.id] && ach.condition(s)) {
+            s.achievements[ach.id] = true;
+            toast({ title: "Achievement Unlocked!", description: ach.name, className: "border-primary bg-card text-primary-foreground" });
+          }
+        });
+      }
+
+      setCps(stats.idlePerSec);
+      setClickPower(stats.clickVal);
+      setMaxEnergy(stats.maxEnergy);
+      forceUpdate();
+      requestAnimationFrame(loop);
+    };
+
+    const reqId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(reqId);
+  }, [calculateDerivedStats, forceUpdate, activeEvent, toast]);
+
+  const mine = useCallback(() => {
+    const s = stateRef.current;
+    if (s.energy <= 0) return { amount: 0, isCrit: false };
+    const stats = calculateDerivedStats(s, activeEvent);
+    s.energy -= 1;
+    s.totalClicks += 1;
+    let amount = stats.clickVal;
+    const isCrit = Math.random() < stats.critChance;
+    if (isCrit) amount *= s.techTree['ultra_crits'] ? 10 : 5;
+    s.credits += amount;
+    s.totalCreditsEarned += amount;
+    forceUpdate();
+    return { amount, isCrit };
+  }, [calculateDerivedStats, activeEvent, forceUpdate]);
+
+  const buyUpgrade = useCallback((id: string, max: boolean = false) => {
+    const s = stateRef.current;
+    const def = UPGRADES.find(u => u.id === id);
+    if (!def) return;
+    if (def.unlockRequirement.type === 'credits' && s.totalCreditsEarned < def.unlockRequirement.value) return;
+    if (def.unlockRequirement.type === 'prestige' && s.prestigeCount < def.unlockRequirement.value) return;
+    let bought = 0;
+    while (true) {
+      const currentLevel = s.upgrades[id] || 0;
+      let cost = getUpgradeCost(def, currentLevel);
+      if (activeEvent?.type === 'discount') cost *= activeEvent.multiplier;
+      if (s.credits >= cost) { s.credits -= cost; s.upgrades[id] = currentLevel + 1; s.totalUpgradesBought++; bought++; if (!max) break; }
+      else break;
+    }
+    if (bought > 0) forceUpdate();
+  }, [activeEvent, forceUpdate]);
+
+  const unlockTech = useCallback((id: string) => {
+    const s = stateRef.current;
+    const def = TECH_TREE.find(t => t.id === id);
+    if (!def || s.techTree[id]) return;
+    if (def.requires && !s.techTree[def.requires]) return;
+    if (s.prestigeTokens >= def.cost) { s.prestigeTokens -= def.cost; s.techTree[id] = true; forceUpdate(); }
+  }, [forceUpdate]);
+
+  const prestige = useCallback(() => {
+    const s = stateRef.current;
+    if (s.credits < 1_000_000_000) return;
+    const gainedTokens = Math.floor(Math.sqrt(s.totalCreditsEarned / 1_000_000_000));
+    stateRef.current = { ...INITIAL_STATE, prestigeCount: s.prestigeCount + 1, prestigeTokens: s.prestigeTokens + gainedTokens, totalPrestigeTokens: s.totalPrestigeTokens + gainedTokens, techTree: s.techTree, achievements: s.achievements, totalClicks: s.totalClicks, playTime: s.playTime, totalCreditsEarned: s.totalCreditsEarned, lastSaveTime: Date.now() };
+    toast({ title: "Prestige Complete", description: `Gained ${gainedTokens} Prestige Tokens!` });
+    forceUpdate();
+  }, [forceUpdate, toast]);
+
+  return {
+    state: gameState,
+    derived: { cps, clickPower, maxEnergy, offlineEarnings },
+    activeEvent,
+    actions: {
+      mine,
+      buyUpgrade,
+      unlockTech,
+      prestige,
+      clearOffline: () => setOfflineEarnings(0),
+      resetGame: () => { if (confirm("Are you sure? This will wipe EVERYTHING.")) { localStorage.removeItem(SAVE_KEY); stateRef.current = { ...INITIAL_STATE }; forceUpdate(); } }
+    }
+  };
+}
