@@ -1,0 +1,32 @@
+import React, { useState, useCallback, useImperativeHandle } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface FloatingTextItem { id: number; x: number; y: number; text: string; isCrit: boolean; }
+export interface FloatingTextRef { addText: (x: number, y: number, text: string, isCrit: boolean) => void; }
+
+export const FloatingTextManager = React.forwardRef<FloatingTextRef>((_, ref) => {
+  const [items, setItems] = useState<FloatingTextItem[]>([]);
+  let idCounter = 0;
+
+  useImperativeHandle(ref, () => ({
+    addText: (x, y, text, isCrit) => {
+      const id = idCounter++;
+      setItems(prev => [...prev, { id, x, y, text, isCrit }]);
+      setTimeout(() => setItems(prev => prev.filter(item => item.id !== id)), 1000);
+    }
+  }));
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50">
+      <AnimatePresence>
+        {items.map(item => (
+          <motion.div key={item.id} initial={{ opacity: 1, y: item.y, x: item.x, scale: item.isCrit ? 1.5 : 1 }} animate={{ opacity: 0, y: item.y - 100, scale: item.isCrit ? 2 : 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}
+            className={`absolute font-display font-bold pointer-events-none -translate-x-1/2 -translate-y-1/2 ${item.isCrit ? 'text-accent text-2xl text-glow' : 'text-primary text-xl'}`}>
+            {item.text}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+});
+FloatingTextManager.displayName = 'FloatingTextManager';
