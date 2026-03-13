@@ -1,0 +1,20 @@
+export interface AchievementDef {
+  id: string;
+  name: string;
+  description: string;
+  condition: (state: any) => boolean;
+  rewardText: string;
+}
+
+export const ACHIEVEMENTS: AchievementDef[] = [
+  { id: "first_click", name: "First Contact", description: "Mine your first ore.", rewardText: "+1% Global Income", condition: s => s.totalClicks >= 1 },
+  { id: "clicker_100", name: "Manual Labor", description: "Click 100 times.", rewardText: "+1% Global Income", condition: s => s.totalClicks >= 100 },
+  { id: "clicker_1k", name: "Carpal Tunnel", description: "Click 1,000 times.", rewardText: "+1% Global Income", condition: s => s.totalClicks >= 1000 },
+  { id: "first_1k", name: "Getting Started", description: "Earn 1,000 total credits.", rewardText: "+1% Global Income", condition: s => s.totalCreditsEarned >= 1000 },
+  { id: "millionaire", name: "Millionaire", description: "Earn 1,000,000 total credits.", rewardText: "+1% Global Income", condition: s => s.totalCreditsEarned >= 1000000 },
+  { id: "billionaire", name: "Billionaire", description: "Earn 1,000,000,000 total credits.", rewardText: "+1% Global Income", condition: s => s.totalCreditsEarned >= 1000000000 },
+  { id: "upgrade_10", name: "Tech Enthusiast", description: "Buy 10 total upgrades.", rewardText: "+1% Global Income", condition: s => s.totalUpgradesBought >= 10 },
+  { id: "upgrade_50", name: "Tech Mogul", description: "Buy 50 total upgrades.", rewardText: "+1% Global Income", condition: s => s.totalUpgradesBought >= 50 },
+  { id: "first_prestige", name: "Rebirth", description: "Prestige for the first time.", rewardText: "+1% Global Income", condition: s => s.prestigeCount >= 1 },
+  { id: "energy_empty", name: "Exhausted", description: "Let your energy reach 0.", rewardText: "+1% Global Income", condition: s => s.energy <= 0 },
+];
