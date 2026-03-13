@@ -1,0 +1,26 @@
+import React from 'react';
+import { ActiveEvent } from '@/hooks/useGameEngine';
+import { motion, AnimatePresence } from 'framer-motion';
+import { TrendingUp, Tag } from 'lucide-react';
+
+export function EventBanner({ event }: { event: ActiveEvent | null }) {
+  return (
+    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md px-4">
+      <AnimatePresence>
+        {event && (
+          <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="glass-panel border-accent shadow-[0_0_20px_rgba(255,215,0,0.2)] rounded-xl p-4 flex items-center gap-4 relative overflow-hidden">
+            <div className="bg-accent/20 p-2 rounded-full text-accent animate-pulse">
+              {event.type === 'discount' ? <Tag /> : <TrendingUp />}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-display font-bold text-accent text-lg">{event.name}</h3>
+              <p className="text-sm text-foreground">{event.description}</p>
+            </div>
+            <div className="font-mono text-xl font-bold text-accent">{Math.ceil(event.timeRemaining)}s</div>
+            <div className="absolute bottom-0 left-0 h-1 bg-accent/50 rounded-b-xl" style={{ width: `${(event.timeRemaining / event.duration) * 100}%` }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
