@@ -1,0 +1,33 @@
+export interface GameState {
+  credits: number;
+  totalCreditsEarned: number;
+  energy: number;
+  upgrades: Record<string, number>;
+  prestigeCount: number;
+  prestigeTokens: number;
+  totalPrestigeTokens: number;
+  techTree: Record<string, boolean>;
+  totalClicks: number;
+  totalUpgradesBought: number;
+  playTime: number;
+  achievements: Record<string, boolean>;
+  lastSaveTime: number;
+  lastActiveTime: number;
+}
+
+export const INITIAL_STATE: GameState = {
+  credits: 0,
+  totalCreditsEarned: 0,
+  energy: 100,
+  upgrades: {},
+  prestigeCount: 0,
+  prestigeTokens: 0,
+  totalPrestigeTokens: 0,
+  techTree: {},
+  totalClicks: 0,
+  totalUpgradesBought: 0,
+  playTime: 0,
+  achievements: {},
+  lastSaveTime: Date.now(),
+  lastActiveTime: Date.now(),
+};
