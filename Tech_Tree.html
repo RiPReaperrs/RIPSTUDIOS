@@ -1,0 +1,17 @@
+export interface TechDef {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  requires?: string;
+  icon: string;
+}
+
+export const TECH_TREE: TechDef[] = [
+  { id: "efficient_drilling", name: "Efficient Drilling", description: "+10% Click Power", cost: 1, icon: "Crosshair" },
+  { id: "automated_systems", name: "Automated Systems", description: "+5% Idle Income", cost: 1, icon: "Settings" },
+  { id: "lucky_strikes", name: "Lucky Strikes", description: "+5% Crit Chance", cost: 2, icon: "Star" },
+  { id: "energy_mastery", name: "Energy Mastery", description: "+25% Max Energy", cost: 2, icon: "BatteryCharging" },
+  { id: "ultra_crits", name: "Ultra Crits", description: "Crits give 10x instead of 5x", cost: 3, requires: "lucky_strikes", icon: "Flame" },
+  { id: "rapid_regen", name: "Rapid Regen", description: "2x Energy Regen", cost: 3, requires: "energy_mastery", icon: "Zap" }
+];
