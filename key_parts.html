@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: 240 60% 4%;    /* Deep space black-blue */
+  --foreground: 210 40% 98%;
+  --card: 240 50% 8%;
+  --primary: 185 100% 40%;     /* Cyan */
+  --secondary: 285 80% 50%;    /* Purple */
+  --accent: 45 100% 50%;       /* Gold */
+  --destructive: 0 80% 60%;    /* Red */
+  --border: 240 40% 20%;
+}
+
+@layer utilities {
+  .glass-panel { @apply bg-card/60 backdrop-blur-md border border-border/50 shadow-lg; }
+  .text-glow { text-shadow: 0 0 10px currentColor; }
+}
